@@ -1,0 +1,59 @@
+$primary-color: #3498db;
+$card-bg: #f4f6f9;
+$text-color: #333;
+$border-radius: 12px;
+
+// Миксин для создания кнопок с настраиваемым цветом фона
+@mixin button($bg-color) {
+    padding: 10px 16px;
+    background: $bg-color;
+    color: white;
+    border-radius: 8px;
+    text-decoration: none;
+    display: inline-block;
+    transition: 0.3s;
+
+    &:hover {
+        background: darken($bg-color, 10%);
+    }
+}
+
+// Блок карточки товара
+.product-card {
+    width: 300px;
+    margin: 50px auto;
+    background: $card-bg;
+    border-radius: $border-radius;
+    overflow: hidden;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+
+    &__image {
+        width: 100%;
+        display: block;
+    }
+
+    &__content {
+        padding: 16px;
+    }
+
+    &__title {
+        font-size: 20px;
+        color: $text-color;
+        margin-bottom: 10px;
+    }
+
+    &__description {
+        font-size: 14px;
+        color: darken($text-color, 20%);
+        margin-bottom: 15px;
+    }
+
+    &--accent {
+        border: 2px solid $primary-color;
+    }
+}
+
+// Класс кнопки с применением миксина
+.btn {
+    @include button($primary-color);
+}

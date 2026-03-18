@@ -5,18 +5,31 @@ import ProductsList from '../../components/ProductsList';
 import ProductModal from '../../components/ProductModal';
 import { api } from '../../api';
 
-export default function ProductsPage ({ onLogout }) {
+export default function ProductsPage({ onLogout }) {
     const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [modalOpen, setModalOpen] = useState(false);
     const [modalMode, setModalMode] = useState('create');
     const [editingProduct, setEditingProduct] = useState(null);
+    const [userInfo, setUserInfo] = useState(null);
     const navigate = useNavigate();
     const user = api.getCurrentUser();
 
     useEffect(() => {
         loadProducts();
+        loadUserInfo();
     }, []);
+
+    const loadUserInfo = async () => {
+        try {
+            const userData = await api.getCurrentUserInfo();
+            setUserInfo(userData);
+            // Обновляем сохраненного пользователя
+            localStorage.setItem('user', JSON.stringify(userData));
+        } catch (err) {
+            console.error('Ошибка загрузки информации о пользователе:', err);
+        }
+    };
 
     const loadProducts = async () => {
         try {
@@ -26,7 +39,7 @@ export default function ProductsPage ({ onLogout }) {
         } catch (err) {
             console.error(err);
             if (err.response?.status === 401) {
-                api.logout();
+                await api.logout();
                 navigate('/login');
             } else {
                 alert('Ошибка загрузки товаров');
@@ -84,11 +97,18 @@ export default function ProductsPage ({ onLogout }) {
         }
     };
 
-    const handleLogout = () => {
-        api.logout();
+    const handleLogout = async () => {
+        await api.logout();
         onLogout?.();
         navigate('/login');
     };
+
+    // Получаем имя для отображения (из userInfo или из localStorage)
+    const displayName = userInfo 
+        ? `${userInfo.first_name} ${userInfo.last_name}`
+        : user 
+            ? `${user.first_name} ${user.last_name}`
+            : 'Пользователь';
 
     return (
         <div className='page'>
@@ -96,19 +116,16 @@ export default function ProductsPage ({ onLogout }) {
                 <div className='header__inner'>
                     <div className='brand'>Sport Shop</div>
                     <div className='header__right'>
-                        {user && (
-                            <>
-                                <span style={{ marginRight: '12px' }}>
-                                    {user.first_name} {user.last_name}
-                                </span>
-                                <button 
-                                    className='btn btn--ghost' 
-                                    onClick={handleLogout}
-                                >
-                                    Выйти
-                                </button>
-                            </>
-                        )}
+                        <div className='user-info'>
+                            <span className='user-name'>{displayName}</span>
+                            <span className='user-email'>{userInfo?.email || user?.email}</span>
+                        </div>
+                        <button 
+                            className='btn btn--ghost' 
+                            onClick={handleLogout}
+                        >
+                            Выйти
+                        </button>
                     </div>
                 </div>
             </header>

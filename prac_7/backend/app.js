@@ -28,7 +28,30 @@ async function verifyPassword(password, hash) {
     return bcrypt.compare(password, hash);
 }
 
-// РЕГИСТРАЦИЯ
+// Генерация access токена (короткоживущий)
+function generateAccessToken(user) {
+    return jwt.sign(
+        { 
+            sub: user.id, 
+            email: user.email,
+            first_name: user.first_name,
+            last_name: user.last_name
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: process.env.ACCESS_TOKEN_EXPIRES || '15m' }
+    );
+}
+
+// Генерация refresh токена (длинноживущий)
+function generateRefreshToken(user) {
+    return jwt.sign(
+        { sub: user.id },
+        process.env.JWT_REFRESH_SECRET,
+        { expiresIn: process.env.REFRESH_TOKEN_EXPIRES || '7d' }
+    );
+}
+
+// Регистрация
 app.post('/api/auth/register', async (req, res) => {
     const { email, first_name, last_name, password } = req.body;
 
@@ -49,22 +72,24 @@ app.post('/api/auth/register', async (req, res) => {
             email,
             first_name,
             last_name,
-            hashedPassword
+            hashedPassword,
+            refreshTokens: [] // для хранения refresh токенов
         };
 
         users.push(newUser);
 
-        const { hashedPassword: _, ...userWithoutPassword } = newUser;
+        const accessToken = generateAccessToken(newUser);
+        const refreshToken = generateRefreshToken(newUser);
         
-        const token = jwt.sign(
-            { id: newUser.id, email: newUser.email },
-            process.env.JWT_SECRET,
-            { expiresIn: '24h' }
-        );
+        // Сохраняем refresh токен (в реальном БД хранили бы хеш)
+        newUser.refreshTokens.push(refreshToken);
+
+        const { hashedPassword: _, refreshTokens: __, ...userWithoutPassword } = newUser;
 
         res.status(201).json({
             user: userWithoutPassword,
-            token
+            accessToken,
+            refreshToken
         });
     } catch (err) {
         console.error(err);
@@ -72,7 +97,7 @@ app.post('/api/auth/register', async (req, res) => {
     }
 });
 
-// ВХОД
+// Вход
 app.post('/api/auth/login', async (req, res) => {
     const { email, password } = req.body;
 
@@ -92,17 +117,24 @@ app.post('/api/auth/login', async (req, res) => {
             return res.status(401).json({ error: 'Неверный email или пароль' });
         }
 
-        const token = jwt.sign(
-            { id: user.id, email: user.email },
-            process.env.JWT_SECRET,
-            { expiresIn: '24h' }
-        );
+        const accessToken = generateAccessToken(user);
+        const refreshToken = generateRefreshToken(user);
+        
+        // Обновляем список refresh токенов
+        user.refreshTokens = user.refreshTokens || [];
+        user.refreshTokens.push(refreshToken);
+        
+        // Ограничим количество хранимых refresh токенов (например, 5)
+        if (user.refreshTokens.length > 5) {
+            user.refreshTokens.shift();
+        }
 
-        const { hashedPassword: _, ...userWithoutPassword } = user;
+        const { hashedPassword: _, refreshTokens: __, ...userWithoutPassword } = user;
 
         res.json({
             user: userWithoutPassword,
-            token
+            accessToken,
+            refreshToken
         });
     } catch (err) {
         console.error(err);
@@ -110,8 +142,93 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
-// ============= Middleware для проверки токена =============
-const authMiddleware = require('./middleware/auth');
+// Обновление токенов
+app.post('/api/auth/refresh', (req, res) => {
+    const { refreshToken } = req.body;
+
+    if (!refreshToken) {
+        return res.status(400).json({ error: 'Refresh token обязателен' });
+    }
+
+    try {
+        const payload = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+        const user = users.find(u => u.id === payload.sub);
+
+        if (!user || !user.refreshTokens.includes(refreshToken)) {
+            return res.status(401).json({ error: 'Недействительный refresh token' });
+        }
+
+        // Генерируем новые токены
+        const newAccessToken = generateAccessToken(user);
+        const newRefreshToken = generateRefreshToken(user);
+
+        // Обновляем список refresh токенов
+        user.refreshTokens = user.refreshTokens.filter(t => t !== refreshToken);
+        user.refreshTokens.push(newRefreshToken);
+
+        res.json({
+            accessToken: newAccessToken,
+            refreshToken: newRefreshToken
+        });
+    } catch (err) {
+        return res.status(401).json({ error: 'Недействительный или просроченный refresh token' });
+    }
+});
+
+// Выход (отзыв refresh токена)
+app.post('/api/auth/logout', (req, res) => {
+    const { refreshToken } = req.body;
+    
+    if (!refreshToken) {
+        return res.status(400).json({ error: 'Refresh token обязателен' });
+    }
+
+    // Удаляем refresh токен из списка пользователя
+    users.forEach(user => {
+        if (user.refreshTokens) {
+            user.refreshTokens = user.refreshTokens.filter(t => t !== refreshToken);
+        }
+    });
+
+    res.json({ message: 'Выход выполнен успешно' });
+});
+
+// ============= Middleware для проверки access токена =============
+function authMiddleware(req, res, next) {
+    const authHeader = req.headers.authorization || '';
+    
+    const [scheme, token] = authHeader.split(' ');
+    
+    if (scheme !== 'Bearer' || !token) {
+        return res.status(401).json({ error: 'Токен не предоставлен или неверный формат' });
+    }
+
+    try {
+        const payload = jwt.verify(token, process.env.JWT_SECRET);
+        req.user = payload;
+        next();
+    } catch (err) {
+        if (err.name === 'TokenExpiredError') {
+            return res.status(401).json({ error: 'Токен истек' });
+        }
+        return res.status(401).json({ error: 'Недействительный токен' });
+    }
+}
+
+// ============= НОВЫЙ МАРШРУТ ДЛЯ ПРАКТИЧЕСКОЙ №8 =============
+// Получение информации о текущем пользователе
+app.get('/api/auth/me', authMiddleware, (req, res) => {
+    const userId = req.user.sub;
+    const user = users.find(u => u.id === userId);
+    
+    if (!user) {
+        return res.status(404).json({ error: 'Пользователь не найден' });
+    }
+
+    const { hashedPassword: _, refreshTokens: __, ...userWithoutPassword } = user;
+    
+    res.json(userWithoutPassword);
+});
 
 // ============= ТОВАРЫ (защищенные маршруты) =============
 
@@ -185,4 +302,15 @@ app.delete('/api/products/:id', authMiddleware, (req, res) => {
 
 app.listen(port, () => {
     console.log(`Сервер запущен на http://localhost:${port}`);
+    console.log(`Маршруты:`);
+    console.log(`  POST   /api/auth/register - регистрация`);
+    console.log(`  POST   /api/auth/login - вход`);
+    console.log(`  GET    /api/auth/me - информация о пользователе (НОВЫЙ)`);
+    console.log(`  POST   /api/auth/refresh - обновление токенов`);
+    console.log(`  POST   /api/auth/logout - выход`);
+    console.log(`  GET    /api/products - список товаров`);
+    console.log(`  POST   /api/products - создание товара`);
+    console.log(`  GET    /api/products/:id - товар по id`);
+    console.log(`  PUT    /api/products/:id - обновление товара`);
+    console.log(`  DELETE /api/products/:id - удаление товара`);
 });

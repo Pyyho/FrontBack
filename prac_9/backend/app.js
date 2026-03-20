@@ -18,7 +18,6 @@ app.use(cors({
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
-app.options('*', cors());
 
 // Хранилища данных
 let users = [];

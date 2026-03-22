@@ -1,10 +1,21 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const cors = require('cors');
 require('dotenv').config();
 
 const app = express();
 const port = process.env.PORT || 3000;
+
+// ✅ CORS настройка
+app.use(cors({
+    origin: 'http://localhost:3001',
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+app.use(express.json());
 
 // Хранилища данных
 let users = [];
@@ -14,8 +25,8 @@ let products = [
     { id: 3, title: 'Наушники', category: 'Аксессуары', description: 'Беспроводные наушники', price: 5000 }
 ];
 
-// Middleware
-app.use(express.json());
+// Хранилище refresh токенов
+const refreshTokens = new Set();
 
 // ============= АУТЕНТИФИКАЦИЯ =============
 
@@ -28,7 +39,6 @@ async function verifyPassword(password, hash) {
     return bcrypt.compare(password, hash);
 }
 
-// Генерация access токена (короткоживущий)
 function generateAccessToken(user) {
     return jwt.sign(
         { 
@@ -37,22 +47,23 @@ function generateAccessToken(user) {
             first_name: user.first_name,
             last_name: user.last_name
         },
-        process.env.JWT_SECRET,
+        process.env.JWT_SECRET || 'access_secret',
         { expiresIn: process.env.ACCESS_TOKEN_EXPIRES || '15m' }
     );
 }
 
-// Генерация refresh токена (длинноживущий)
 function generateRefreshToken(user) {
     return jwt.sign(
         { sub: user.id },
-        process.env.JWT_REFRESH_SECRET,
+        process.env.JWT_REFRESH_SECRET || 'refresh_secret',
         { expiresIn: process.env.REFRESH_TOKEN_EXPIRES || '7d' }
     );
 }
 
 // Регистрация
 app.post('/api/auth/register', async (req, res) => {
+    console.log('📝 Регистрация:', req.body);
+    
     const { email, first_name, last_name, password } = req.body;
 
     if (!email || !password || !first_name || !last_name) {
@@ -72,19 +83,18 @@ app.post('/api/auth/register', async (req, res) => {
             email,
             first_name,
             last_name,
-            hashedPassword,
-            refreshTokens: [] // для хранения refresh токенов
+            hashedPassword
         };
 
         users.push(newUser);
+        console.log('✅ Пользователь создан:', email);
 
         const accessToken = generateAccessToken(newUser);
         const refreshToken = generateRefreshToken(newUser);
         
-        // Сохраняем refresh токен (в реальном БД хранили бы хеш)
-        newUser.refreshTokens.push(refreshToken);
+        refreshTokens.add(refreshToken);
 
-        const { hashedPassword: _, refreshTokens: __, ...userWithoutPassword } = newUser;
+        const { hashedPassword: _, ...userWithoutPassword } = newUser;
 
         res.status(201).json({
             user: userWithoutPassword,
@@ -92,13 +102,15 @@ app.post('/api/auth/register', async (req, res) => {
             refreshToken
         });
     } catch (err) {
-        console.error(err);
+        console.error('❌ Ошибка:', err);
         res.status(500).json({ error: 'Ошибка при регистрации' });
     }
 });
 
 // Вход
 app.post('/api/auth/login', async (req, res) => {
+    console.log('🔐 Вход:', req.body.email);
+    
     const { email, password } = req.body;
 
     if (!email || !password) {
@@ -120,16 +132,9 @@ app.post('/api/auth/login', async (req, res) => {
         const accessToken = generateAccessToken(user);
         const refreshToken = generateRefreshToken(user);
         
-        // Обновляем список refresh токенов
-        user.refreshTokens = user.refreshTokens || [];
-        user.refreshTokens.push(refreshToken);
-        
-        // Ограничим количество хранимых refresh токенов (например, 5)
-        if (user.refreshTokens.length > 5) {
-            user.refreshTokens.shift();
-        }
+        refreshTokens.add(refreshToken);
 
-        const { hashedPassword: _, refreshTokens: __, ...userWithoutPassword } = user;
+        const { hashedPassword: _, ...userWithoutPassword } = user;
 
         res.json({
             user: userWithoutPassword,
@@ -137,7 +142,7 @@ app.post('/api/auth/login', async (req, res) => {
             refreshToken
         });
     } catch (err) {
-        console.error(err);
+        console.error('❌ Ошибка входа:', err);
         res.status(500).json({ error: 'Ошибка при входе' });
     }
 });
@@ -150,21 +155,24 @@ app.post('/api/auth/refresh', (req, res) => {
         return res.status(400).json({ error: 'Refresh token обязателен' });
     }
 
+    if (!refreshTokens.has(refreshToken)) {
+        return res.status(401).json({ error: 'Недействительный refresh token' });
+    }
+
     try {
-        const payload = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+        const payload = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET || 'refresh_secret');
         const user = users.find(u => u.id === payload.sub);
 
-        if (!user || !user.refreshTokens.includes(refreshToken)) {
-            return res.status(401).json({ error: 'Недействительный refresh token' });
+        if (!user) {
+            return res.status(401).json({ error: 'Пользователь не найден' });
         }
 
-        // Генерируем новые токены
+        refreshTokens.delete(refreshToken);
+        
         const newAccessToken = generateAccessToken(user);
         const newRefreshToken = generateRefreshToken(user);
-
-        // Обновляем список refresh токенов
-        user.refreshTokens = user.refreshTokens.filter(t => t !== refreshToken);
-        user.refreshTokens.push(newRefreshToken);
+        
+        refreshTokens.add(newRefreshToken);
 
         res.json({
             accessToken: newAccessToken,
@@ -175,36 +183,29 @@ app.post('/api/auth/refresh', (req, res) => {
     }
 });
 
-// Выход (отзыв refresh токена)
+// Выход
 app.post('/api/auth/logout', (req, res) => {
     const { refreshToken } = req.body;
     
-    if (!refreshToken) {
-        return res.status(400).json({ error: 'Refresh token обязателен' });
+    if (refreshToken) {
+        refreshTokens.delete(refreshToken);
     }
-
-    // Удаляем refresh токен из списка пользователя
-    users.forEach(user => {
-        if (user.refreshTokens) {
-            user.refreshTokens = user.refreshTokens.filter(t => t !== refreshToken);
-        }
-    });
 
     res.json({ message: 'Выход выполнен успешно' });
 });
 
-// ============= Middleware для проверки access токена =============
+// Middleware для проверки токена
 function authMiddleware(req, res, next) {
     const authHeader = req.headers.authorization || '';
     
     const [scheme, token] = authHeader.split(' ');
     
     if (scheme !== 'Bearer' || !token) {
-        return res.status(401).json({ error: 'Токен не предоставлен или неверный формат' });
+        return res.status(401).json({ error: 'Токен не предоставлен' });
     }
 
     try {
-        const payload = jwt.verify(token, process.env.JWT_SECRET);
+        const payload = jwt.verify(token, process.env.JWT_SECRET || 'access_secret');
         req.user = payload;
         next();
     } catch (err) {
@@ -215,8 +216,7 @@ function authMiddleware(req, res, next) {
     }
 }
 
-// ============= НОВЫЙ МАРШРУТ ДЛЯ ПРАКТИЧЕСКОЙ №8 =============
-// Получение информации о текущем пользователе
+// Информация о пользователе
 app.get('/api/auth/me', authMiddleware, (req, res) => {
     const userId = req.user.sub;
     const user = users.find(u => u.id === userId);
@@ -225,14 +225,13 @@ app.get('/api/auth/me', authMiddleware, (req, res) => {
         return res.status(404).json({ error: 'Пользователь не найден' });
     }
 
-    const { hashedPassword: _, refreshTokens: __, ...userWithoutPassword } = user;
+    const { hashedPassword: _, ...userWithoutPassword } = user;
     
     res.json(userWithoutPassword);
 });
 
-// ============= ТОВАРЫ (защищенные маршруты) =============
+// ============= ТОВАРЫ =============
 
-// Создание товара
 app.post('/api/products', authMiddleware, (req, res) => {
     const { title, category, description, price } = req.body;
 
@@ -252,12 +251,10 @@ app.post('/api/products', authMiddleware, (req, res) => {
     res.status(201).json(newProduct);
 });
 
-// Получение всех товаров
 app.get('/api/products', authMiddleware, (req, res) => {
     res.json(products);
 });
 
-// Получение товара по id
 app.get('/api/products/:id', authMiddleware, (req, res) => {
     const product = products.find(p => p.id == req.params.id);
     
@@ -268,7 +265,6 @@ app.get('/api/products/:id', authMiddleware, (req, res) => {
     res.json(product);
 });
 
-// Обновление товара
 app.put('/api/products/:id', authMiddleware, (req, res) => {
     const { title, category, description, price } = req.body;
     const productIndex = products.findIndex(p => p.id == req.params.id);
@@ -288,7 +284,6 @@ app.put('/api/products/:id', authMiddleware, (req, res) => {
     res.json(products[productIndex]);
 });
 
-// Удаление товара
 app.delete('/api/products/:id', authMiddleware, (req, res) => {
     const productIndex = products.findIndex(p => p.id == req.params.id);
 
@@ -301,16 +296,6 @@ app.delete('/api/products/:id', authMiddleware, (req, res) => {
 });
 
 app.listen(port, () => {
-    console.log(`Сервер запущен на http://localhost:${port}`);
-    console.log(`Маршруты:`);
-    console.log(`  POST   /api/auth/register - регистрация`);
-    console.log(`  POST   /api/auth/login - вход`);
-    console.log(`  GET    /api/auth/me - информация о пользователе (НОВЫЙ)`);
-    console.log(`  POST   /api/auth/refresh - обновление токенов`);
-    console.log(`  POST   /api/auth/logout - выход`);
-    console.log(`  GET    /api/products - список товаров`);
-    console.log(`  POST   /api/products - создание товара`);
-    console.log(`  GET    /api/products/:id - товар по id`);
-    console.log(`  PUT    /api/products/:id - обновление товара`);
-    console.log(`  DELETE /api/products/:id - удаление товара`);
+    console.log(`\n🚀 Сервер запущен на http://localhost:${port}`);
+    console.log(`📱 Фронтенд ожидается на http://localhost:3001\n`);
 });

@@ -22,6 +22,7 @@ const apiClient = axios.create({
     baseURL: API_URL
 });
 
+
 // Добавляем access token к каждому запросу
 apiClient.interceptors.request.use(
     config => {
@@ -56,7 +57,7 @@ apiClient.interceptors.response.use(
                 });
 
                 const { accessToken, refreshToken: newRefreshToken } = response.data;
-                
+
                 // Сохраняем новые токены
                 setTokens(accessToken, newRefreshToken);
 
@@ -141,6 +142,30 @@ export const api = {
 
     async deleteProduct(id) {
         const response = await apiClient.delete(`/products/${id}`);
+        return response.data;
+    },
+
+    // Получение списка пользователей (только для админа)
+    async getUsers() {
+        const response = await apiClient.get('/users');
+        return response.data;
+    },
+
+    // Получение пользователя по ID (только для админа)
+    async getUser(id) {
+        const response = await apiClient.get(`/users/${id}`);
+        return response.data;
+    },
+
+    // Обновление пользователя (только для админа)
+    async updateUser(id, userData) {
+        const response = await apiClient.put(`/users/${id}`, userData);
+        return response.data;
+    },
+
+    // Удаление пользователя (только для админа)
+    async deleteUser(id) {
+        const response = await apiClient.delete(`/users/${id}`);
         return response.data;
     }
 };

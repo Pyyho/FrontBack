@@ -1,6 +1,9 @@
 import React from 'react'
 
-export default function ProductCard ({ product, onEdit, onDelete }) {
+export default function ProductCard({ product, onEdit, onDelete, userRole }) {
+  const canEdit = userRole === 'seller' || userRole === 'admin'
+  const canDelete = userRole === 'admin'
+
   return (
     <div className='card'>
       <div className='card__image'>
@@ -10,6 +13,9 @@ export default function ProductCard ({ product, onEdit, onDelete }) {
           }
           alt={product.name}
           loading='lazy'
+          onError={(e) => {
+            e.target.src = 'https://via.placeholder.com/600x400?text=No+Image'
+          }}
         />
         <div className='card__category-badge'>{product.category}</div>
       </div>
@@ -21,15 +27,19 @@ export default function ProductCard ({ product, onEdit, onDelete }) {
         </div>
 
         <div className='card__actions'>
-          <button className='btn btn--ghost' onClick={() => onEdit(product)}>
-            Редактировать
-          </button>
-          <button
-            className='btn btn--danger'
-            onClick={() => onDelete(product.id)}
-          >
-            Удалить
-          </button>
+          {canEdit && (
+            <button className='btn btn--ghost' onClick={() => onEdit(product)}>
+              Редактировать
+            </button>
+          )}
+          {canDelete && (
+            <button
+              className='btn btn--danger'
+              onClick={() => onDelete(product.id)}
+            >
+              Удалить
+            </button>
+          )}
         </div>
       </div>
 

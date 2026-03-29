@@ -8,10 +8,161 @@ const apiClient = axios.create({
   }
 })
 
+// Token management with localStorage
+let isRefreshing = false
+let failedQueue = []
+
+const processQueue = (error, token = null) => {
+  failedQueue.forEach(prom => {
+    if (error) {
+      prom.reject(error)
+    } else {
+      prom.resolve(token)
+    }
+  })
+  failedQueue = []
+}
+
+export const setTokens = (access, refresh) => {
+  if (access) {
+    localStorage.setItem('accessToken', access)
+  } else {
+    localStorage.removeItem('accessToken')
+  }
+  if (refresh) {
+    localStorage.setItem('refreshToken', refresh)
+  } else {
+    localStorage.removeItem('refreshToken')
+  }
+}
+
+export const getAccessToken = () => localStorage.getItem('accessToken')
+export const getRefreshToken = () => localStorage.getItem('refreshToken')
+
+export const clearTokens = () => {
+  localStorage.removeItem('accessToken')
+  localStorage.removeItem('refreshToken')
+}
+
+// Request interceptor - add access token to every request
+apiClient.interceptors.request.use(
+  (config) => {
+    const token = getAccessToken()
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
+    return config
+  },
+  (error) => Promise.reject(error)
+)
+
+// Response interceptor - handle token refresh on 401
+apiClient.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config
+
+    // If not 401 or already retried, reject
+    if (error.response?.status !== 401 || originalRequest._retry) {
+      return Promise.reject(error)
+    }
+
+    originalRequest._retry = true
+
+    // If already refreshing, queue this request
+    if (isRefreshing) {
+      return new Promise((resolve, reject) => {
+        failedQueue.push({ resolve, reject })
+      })
+        .then(token => {
+          originalRequest.headers.Authorization = `Bearer ${token}`
+          return apiClient(originalRequest)
+        })
+        .catch(err => Promise.reject(err))
+    }
+
+    isRefreshing = true
+    const refreshToken = getRefreshToken()
+
+    if (!refreshToken) {
+      clearTokens()
+      isRefreshing = false
+      window.location.href = '/'
+      return Promise.reject(error)
+    }
+
+    try {
+      const response = await axios.post('http://127.0.0.1:3000/api/auth/refresh', {
+        refreshToken
+      })
+
+      const { accessToken, refreshToken: newRefreshToken } = response.data
+      setTokens(accessToken, newRefreshToken)
+
+      processQueue(null, accessToken)
+
+      originalRequest.headers.Authorization = `Bearer ${accessToken}`
+      return apiClient(originalRequest)
+    } catch (refreshError) {
+      processQueue(refreshError, null)
+      clearTokens()
+      isRefreshing = false
+      window.location.href = '/'
+      return Promise.reject(refreshError)
+    } finally {
+      isRefreshing = false
+    }
+  }
+)
+
+// Auth API
+export const auth = {
+  register: async (userData) => {
+    const response = await apiClient.post('/auth/register', userData)
+    return response.data
+  },
+  login: async (credentials) => {
+    const response = await apiClient.post('/auth/login', credentials)
+    const { accessToken, refreshToken, user } = response.data
+    setTokens(accessToken, refreshToken)
+    return user
+  },
+  logout: async () => {
+    const refreshToken = getRefreshToken()
+    if (refreshToken) {
+      await apiClient.post('/auth/logout', { refreshToken }).catch(() => {})
+    }
+    clearTokens()
+  },
+  getMe: async () => {
+    const response = await apiClient.get('/auth/me')
+    return response.data
+  },
+  isAuthenticated: () => {
+    return !!getAccessToken()
+  }
+}
+
+// Products API
 export const api = {
-  createProduct: async product => (await apiClient.post('/products', product)).data,
-  getProducts: async () => (await apiClient.get('/products')).data,
-  getProductById: async id => (await apiClient.get(`/products/${id}`)).data,
-  updateProduct: async (id, product) => (await apiClient.patch(`/products/${id}`, product)).data,
-  deleteProduct: async id => (await apiClient.delete(`/products/${id}`)).data
+  createProduct: async (product) => {
+    const response = await apiClient.post('/products', product)
+    return response.data
+  },
+  getProducts: async () => {
+    const response = await apiClient.get('/products')
+    return response.data
+  },
+  getProductById: async (id) => {
+    const response = await apiClient.get(`/products/${id}`)
+    return response.data
+  },
+  updateProduct: async (id, product) => {
+    const response = await apiClient.put(`/products/${id}`, product)
+    return response.data
+  },
+  deleteProduct: async (id) => {
+    const response = await apiClient.delete(`/products/${id}`)
+    return response.data
+  }
 }

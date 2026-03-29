@@ -21,7 +21,6 @@ const REFRESH_EXPIRES_IN = '7d'
 
 // ===== Roles =====
 const ROLES = {
-  GUEST: 'guest',
   USER: 'user',
   SELLER: 'seller',
   ADMIN: 'admin'
@@ -32,36 +31,18 @@ let users = []
 let products = []
 let refreshTokens = new Set()
 
-// Create default admin user if not exists
-const createDefaultAdmin = async () => {
-  const adminExists = users.find(u => u.role === ROLES.ADMIN)
-  if (!adminExists) {
-    const adminPassword = await bcrypt.hash('admin123', 10)
-    users.push({
-      id: nanoid(8),
-      email: 'admin@example.com',
-      first_name: 'Admin',
-      last_name: 'User',
-      passwordHash: adminPassword,
-      role: ROLES.ADMIN,
-      isActive: true
-    })
-    console.log('✅ Default admin created: admin@example.com / admin123')
-  }
-}
-
-// Initial products
-const initialProducts = [
-  { id: nanoid(8), name: 'Футбольный мяч', category: 'Футбол', description: 'Размер 5, термосклейка панелей, для тренировок и игр', price: 2499, stock: 18, image: '/images/ball.jpg' },
-  { id: nanoid(8), name: 'Бутсы', category: 'Футбол', description: 'Лёгкие бутсы для искусственного газона, хорошее сцепление', price: 5999, stock: 9, image: '/images/buts.jpg' },
-  { id: nanoid(8), name: 'Бинты боксерские', category: 'Единоборства', description: 'Хлопок, фиксируют кисть и запястье, 2 шт в комплекте', price: 499, stock: 45, image: '/images/binti.jpg' },
-  { id: nanoid(8), name: 'Перчатки боксерские', category: 'Единоборства', description: 'Подойдут для спаррингов, плотная набивка, фиксация липучкой', price: 3999, stock: 14, image: '/images/perchatki.jpg' },
-  { id: nanoid(8), name: 'Коврик для йоги', category: 'Йога', description: 'Нескользящий, 183×61 см, комфортная толщина для суставов', price: 1299, stock: 30, image: '/images/kovrik.jpg' },
-  { id: nanoid(8), name: 'Резинки для фитнеса (набор)', category: 'Фитнес', description: '5 уровней сопротивления, для тренировок дома и в зале', price: 799, stock: 60, image: '/images/rezinki.jpg' },
-  { id: nanoid(8), name: 'Гантели разборные', category: 'Силовые тренировки', description: 'Набор блинов + гриф, регулировка веса под упражнения', price: 7499, stock: 7, image: '/images/ganteli.jpg' },
-  { id: nanoid(8), name: 'Скакалка', category: 'Кардио', description: 'Подшипники, регулируемая длина, для интенсивных тренировок', price: 699, stock: 35, image: '/images/skak.jpg' },
-  { id: nanoid(8), name: 'Фляга спортивная 750 мл', category: 'Аксессуары', description: 'Без BPA, удобный клапан, подходит для велосипеда и зала', price: 599, stock: 80, image: '/images/bottle.jpg' },
-  { id: nanoid(8), name: 'Ракетка для тенниса', category: 'Теннис', description: 'Для начинающих, лёгкая, чехол в комплекте', price: 4999, stock: 11, image: '/images/raketka.jpg' }
+// Initial products template
+const getInitialProducts = (ownerId) => [
+  { id: nanoid(8), name: 'Футбольный мяч', category: 'Футбол', description: 'Размер 5, термосклейка панелей, для тренировок и игр', price: 2499, stock: 18, image: '/images/ball.jpg', ownerId },
+  { id: nanoid(8), name: 'Бутсы', category: 'Футбол', description: 'Лёгкие бутсы для искусственного газона, хорошее сцепление', price: 5999, stock: 9, image: '/images/buts.jpg', ownerId },
+  { id: nanoid(8), name: 'Бинты боксерские', category: 'Единоборства', description: 'Хлопок, фиксируют кисть и запястье, 2 шт в комплекте', price: 499, stock: 45, image: '/images/binti.jpg', ownerId },
+  { id: nanoid(8), name: 'Перчатки боксерские', category: 'Единоборства', description: 'Подойдут для спаррингов, плотная набивка, фиксация липучкой', price: 3999, stock: 14, image: '/images/perchatki.jpg', ownerId },
+  { id: nanoid(8), name: 'Коврик для йоги', category: 'Йога', description: 'Нескользящий, 183×61 см, комфортная толщина для суставов', price: 1299, stock: 30, image: '/images/kovrik.jpg', ownerId },
+  { id: nanoid(8), name: 'Резинки для фитнеса (набор)', category: 'Фитнес', description: '5 уровней сопротивления, для тренировок дома и в зале', price: 799, stock: 60, image: '/images/rezinki.jpg', ownerId },
+  { id: nanoid(8), name: 'Гантели разборные', category: 'Силовые тренировки', description: 'Набор блинов + гриф, регулировка веса под упражнения', price: 7499, stock: 7, image: '/images/ganteli.jpg', ownerId },
+  { id: nanoid(8), name: 'Скакалка', category: 'Кардио', description: 'Подшипники, регулируемая длина, для интенсивных тренировок', price: 699, stock: 35, image: '/images/skak.jpg', ownerId },
+  { id: nanoid(8), name: 'Фляга спортивная 750 мл', category: 'Аксессуары', description: 'Без BPA, удобный клапан, подходит для велосипеда и зала', price: 599, stock: 80, image: '/images/bottle.jpg', ownerId },
+  { id: nanoid(8), name: 'Ракетка для тенниса', category: 'Теннис', description: 'Для начинающих, лёгкая, чехол в комплекте', price: 4999, stock: 11, image: '/images/raketka.jpg', ownerId }
 ]
 
 // ===== Helper functions =====
@@ -70,13 +51,7 @@ const verifyPassword = async (password, hash) => bcrypt.compare(password, hash)
 
 const generateAccessToken = (user) => {
   return jwt.sign(
-    { 
-      sub: user.id, 
-      email: user.email, 
-      first_name: user.first_name, 
-      last_name: user.last_name,
-      role: user.role
-    },
+    { sub: user.id, email: user.email, first_name: user.first_name, last_name: user.last_name, role: user.role },
     ACCESS_SECRET,
     { expiresIn: ACCESS_EXPIRES_IN }
   )
@@ -110,9 +85,7 @@ const verifyRefreshToken = (token) => {
   }
 }
 
-// ===== Middleware =====
-
-// Auth middleware - checks if user is authenticated
+// ===== Auth Middleware =====
 const authMiddleware = (req, res, next) => {
   const authHeader = req.headers.authorization || ''
   const [scheme, token] = authHeader.split(' ')
@@ -130,52 +103,49 @@ const authMiddleware = (req, res, next) => {
   next()
 }
 
-// Role middleware - checks if user has required role
+// ===== Role Middleware =====
 const roleMiddleware = (allowedRoles) => {
   return (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({ error: 'Not authenticated' })
     }
-    
     if (!allowedRoles.includes(req.user.role)) {
       return res.status(403).json({ 
-        error: `Access denied. Required roles: ${allowedRoles.join(', ')}. Your role: ${req.user.role}` 
+        error: `Access denied. Required role: ${allowedRoles.join(' or ')}. Your role: ${req.user.role}` 
       })
     }
-    
     next()
   }
-}
-
-// Optional auth - doesn't fail if no token, just sets user to null
-const optionalAuthMiddleware = (req, res, next) => {
-  const authHeader = req.headers.authorization || ''
-  const [scheme, token] = authHeader.split(' ')
-
-  if (scheme === 'Bearer' && token) {
-    const payload = verifyAccessToken(token)
-    if (payload) {
-      req.user = payload
-    }
-  }
-  next()
 }
 
 // Find helpers
 const findUserByEmail = (email) => users.find(u => u.email === email)
 const findUserById = (id) => users.find(u => u.id === id)
 
-const findProductOr403 = (id, userId, res) => {
-  const product = products.find(p => p.id === id)
-  if (!product) {
-    res.status(404).json({ error: 'Product not found' })
-    return null
+// ===== Initialize default admin =====
+const initializeDefaultAdmin = async () => {
+  // Check if admin already exists
+  const adminExists = users.find(u => u.role === ROLES.ADMIN)
+  if (!adminExists) {
+    const adminPasswordHash = await hashPassword('admin123')
+    const adminUser = {
+      id: nanoid(8),
+      email: 'admin@example.com',
+      first_name: 'Admin',
+      last_name: 'User',
+      passwordHash: adminPasswordHash,
+      role: ROLES.ADMIN,
+      isActive: true
+    }
+    users.push(adminUser)
+    
+    // Create products for admin
+    const adminProducts = getInitialProducts(adminUser.id)
+    products.push(...adminProducts)
+    
+    console.log('✅ Default admin created: admin@example.com / admin123')
+    console.log(`✅ Created ${adminProducts.length} products for admin`)
   }
-  if (product.ownerId !== userId) {
-    res.status(403).json({ error: 'You do not have permission to access this product' })
-    return null
-  }
-  return product
 }
 
 // ===== Swagger config =====
@@ -184,16 +154,12 @@ const swaggerDefinition = {
   info: {
     title: 'Sport Shop API with RBAC',
     version: '1.0.0',
-    description: 'CRUD API с системой ролей (RBAC) - Гость, Пользователь, Продавец, Администратор (Практика №11)'
+    description: 'CRUD API с системой ролей (RBAC) - Практика №11'
   },
   servers: [{ url: 'http://127.0.0.1:3000' }],
   components: {
     securitySchemes: {
-      bearerAuth: {
-        type: 'http',
-        scheme: 'bearer',
-        bearerFormat: 'JWT'
-      }
+      bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }
     }
   }
 }
@@ -228,16 +194,42 @@ app.use((req, res, next) => {
 
 /**
  * @swagger
- * tags:
- *   - name: Auth
- *     description: Аутентификация
- *   - name: Users
- *     description: Управление пользователями (только админ)
- *   - name: Products
- *     description: Управление товарами
+ * /api/auth/register:
+ *   post:
+ *     summary: Регистрация нового пользователя
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - first_name
+ *               - last_name
+ *               - password
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 example: user@example.com
+ *               first_name:
+ *                 type: string
+ *                 example: Иван
+ *               last_name:
+ *                 type: string
+ *                 example: Иванов
+ *               password:
+ *                 type: string
+ *                 example: qwerty123
+ *     responses:
+ *       201:
+ *         description: Пользователь успешно создан
+ *       400:
+ *         description: Ошибка валидации
  */
 
-// POST /api/auth/register - GUEST only
+// POST /api/auth/register - PUBLIC
 app.post('/api/auth/register', async (req, res) => {
   const { email, first_name, last_name, password } = req.body
 
@@ -265,17 +257,52 @@ app.post('/api/auth/register', async (req, res) => {
     first_name: first_name.trim(),
     last_name: last_name.trim(),
     passwordHash,
-    role: ROLES.USER,  // Default role
+    role: ROLES.USER,
     isActive: true
   }
 
   users.push(newUser)
+  
+  // Create products for new user
+  const userProducts = getInitialProducts(newUser.id)
+  products.push(...userProducts)
 
   const { passwordHash: _, ...userWithoutHash } = newUser
+  console.log(`✅ New user registered: ${email} as ${newUser.role}`)
   res.status(201).json(userWithoutHash)
 })
 
-// POST /api/auth/login - GUEST only
+
+/**
+ * @swagger
+ * /api/auth/login:
+ *   post:
+ *     summary: Вход в систему
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - password
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 example: admin@example.com
+ *               password:
+ *                 type: string
+ *                 example: admin123
+ *     responses:
+ *       200:
+ *         description: Успешный вход
+ *       401:
+ *         description: Неверные учетные данные
+ */
+
+// POST /api/auth/login - PUBLIC
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body
 
@@ -302,10 +329,36 @@ app.post('/api/auth/login', async (req, res) => {
   refreshTokens.add(refreshToken)
 
   const { passwordHash: _, ...userWithoutHash } = user
+  console.log(`✅ User logged in: ${email} (${user.role})`)
   res.json({ accessToken, refreshToken, user: userWithoutHash })
 })
 
-// POST /api/auth/refresh - GUEST only
+
+/**
+ * @swagger
+ * /api/auth/refresh:
+ *   post:
+ *     summary: Обновление токенов
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - refreshToken
+ *             properties:
+ *               refreshToken:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Новые токены
+ *       401:
+ *         description: Недействительный refresh токен
+ */
+
+// POST /api/auth/refresh - PUBLIC
 app.post('/api/auth/refresh', (req, res) => {
   const { refreshToken } = req.body
 
@@ -343,7 +396,21 @@ app.post('/api/auth/refresh', (req, res) => {
   }
 })
 
-// POST /api/auth/logout - USER, SELLER, ADMIN
+
+/**
+ * @swagger
+ * /api/auth/logout:
+ *   post:
+ *     summary: Выход из системы
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Успешный выход
+ */
+
+// POST /api/auth/logout - AUTHENTICATED USERS
 app.post('/api/auth/logout', authMiddleware, (req, res) => {
   const { refreshToken } = req.body
 
@@ -354,23 +421,79 @@ app.post('/api/auth/logout', authMiddleware, (req, res) => {
   res.status(200).json({ message: 'Logged out successfully' })
 })
 
-// GET /api/auth/me - USER, SELLER, ADMIN
+
+/**
+ * @swagger
+ * /api/auth/me:
+ *   get:
+ *     summary: Получить информацию о текущем пользователе
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Информация о пользователе
+ *       401:
+ *         description: Не авторизован
+ */
+
+// GET /api/auth/me - AUTHENTICATED USERS
 app.get('/api/auth/me', authMiddleware, (req, res) => {
   const user = findUserById(req.user.sub)
   if (!user) {
     return res.status(404).json({ error: 'User not found' })
   }
-  const { passwordHash: _, ...userWithoutHash } = user
+  const { passwordHash, ...userWithoutHash } = user
   res.json(userWithoutHash)
 })
 
 // ===== USER MANAGEMENT ROUTES (ADMIN only) =====
+
+
+/**
+ * @swagger
+ * /api/users:
+ *   get:
+ *     summary: Получить список всех пользователей
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Список пользователей
+ *       403:
+ *         description: Доступ только для администратора
+ */
 
 // GET /api/users - ADMIN only
 app.get('/api/users', authMiddleware, roleMiddleware([ROLES.ADMIN]), (req, res) => {
   const allUsers = users.map(({ passwordHash, ...user }) => user)
   res.json(allUsers)
 })
+
+
+/**
+ * @swagger
+ * /api/users/{id}:
+ *   get:
+ *     summary: Получить пользователя по ID
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Информация о пользователе
+ *       403:
+ *         description: Доступ только для администратора
+ *       404:
+ *         description: Пользователь не найден
+ */
 
 // GET /api/users/:id - ADMIN only
 app.get('/api/users/:id', authMiddleware, roleMiddleware([ROLES.ADMIN]), (req, res) => {
@@ -382,7 +505,45 @@ app.get('/api/users/:id', authMiddleware, roleMiddleware([ROLES.ADMIN]), (req, r
   res.json(userWithoutHash)
 })
 
-// PUT /api/users/:id - ADMIN only (update user)
+
+/**
+ * @swagger
+ * /api/users/{id}:
+ *   put:
+ *     summary: Обновить пользователя
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               first_name:
+ *                 type: string
+ *               last_name:
+ *                 type: string
+ *               role:
+ *                 type: string
+ *                 enum: [user, seller, admin]
+ *               isActive:
+ *                 type: boolean
+ *     responses:
+ *       200:
+ *         description: Пользователь обновлён
+ *       403:
+ *         description: Доступ только для администратора
+ */
+
+// PUT /api/users/:id - ADMIN only
 app.put('/api/users/:id', authMiddleware, roleMiddleware([ROLES.ADMIN]), async (req, res) => {
   const user = findUserById(req.params.id)
   if (!user) {
@@ -399,22 +560,88 @@ app.put('/api/users/:id', authMiddleware, roleMiddleware([ROLES.ADMIN]), async (
   if (isActive !== undefined) user.isActive = isActive
 
   const { passwordHash, ...userWithoutHash } = user
+  console.log(`✅ User updated: ${user.email} - role: ${user.role}, active: ${user.isActive}`)
   res.json(userWithoutHash)
 })
 
-// DELETE /api/users/:id - ADMIN only (block/delete user)
+
+/**
+ * @swagger
+ * /api/users/{id}:
+ *   delete:
+ *     summary: Заблокировать пользователя
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Пользователь заблокирован
+ *       403:
+ *         description: Доступ только для администратора
+ *       404:
+ *         description: Пользователь не найден
+ */
+
+// DELETE /api/users/:id (soft delete - block) - ADMIN only
 app.delete('/api/users/:id', authMiddleware, roleMiddleware([ROLES.ADMIN]), (req, res) => {
   const user = findUserById(req.params.id)
   if (!user) {
     return res.status(404).json({ error: 'User not found' })
   }
 
-  // Soft delete - mark as inactive
   user.isActive = false
+  console.log(`✅ User blocked: ${user.email}`)
   res.status(200).json({ message: 'User blocked successfully', user: { id: user.id, email: user.email, isActive: user.isActive } })
 })
 
 // ===== PRODUCT ROUTES =====
+
+
+/**
+ * @swagger
+ * /api/products:
+ *   post:
+ *     summary: Создать новый товар
+ *     tags: [Products]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *               - category
+ *               - description
+ *               - price
+ *               - stock
+ *             properties:
+ *               name:
+ *                 type: string
+ *               category:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               price:
+ *                 type: number
+ *               stock:
+ *                 type: number
+ *               image:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Товар создан
+ *       403:
+ *         description: Доступ только для продавцов и администраторов
+ */
 
 // POST /api/products - SELLER and ADMIN only
 app.post('/api/products', authMiddleware, roleMiddleware([ROLES.SELLER, ROLES.ADMIN]), (req, res) => {
@@ -429,8 +656,7 @@ app.post('/api/products', authMiddleware, roleMiddleware([ROLES.SELLER, ROLES.AD
     price: Number(price),
     stock: Number(stock),
     image: String(image || '').trim(),
-    ownerId: userId,
-    createdAt: new Date().toISOString()
+    ownerId: userId
   }
 
   if (!newProduct.name || !newProduct.category || !newProduct.description) {
@@ -445,30 +671,126 @@ app.post('/api/products', authMiddleware, roleMiddleware([ROLES.SELLER, ROLES.AD
 
   products.push(newProduct)
   const { ownerId, ...productWithoutOwner } = newProduct
+  console.log(`✅ Product created: ${newProduct.name} by ${req.user.email}`)
   res.status(201).json(productWithoutOwner)
 })
 
-// GET /api/products - USER, SELLER, ADMIN (all authenticated users)
+
+/**
+ * @swagger
+ * /api/products:
+ *   get:
+ *     summary: Получить список своих товаров
+ *     tags: [Products]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Список товаров
+ */
+
+// GET /api/products - AUTHENTICATED USERS (view their own products)
 app.get('/api/products', authMiddleware, (req, res) => {
-  const userProducts = products.map(({ ownerId, ...product }) => product)
+  const userId = req.user.sub
+  const userProducts = products
+    .filter(p => p.ownerId === userId)
+    .map(({ ownerId, ...product }) => product)
   res.json(userProducts)
 })
 
-// GET /api/products/:id - USER, SELLER, ADMIN
+
+/**
+ * @swagger
+ * /api/products/{id}:
+ *   get:
+ *     summary: Получить товар по ID
+ *     tags: [Products]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Информация о товаре
+ *       404:
+ *         description: Товар не найден
+ */
+
+// GET /api/products/:id - AUTHENTICATED USERS
 app.get('/api/products/:id', authMiddleware, (req, res) => {
+  const userId = req.user.sub
   const product = products.find(p => p.id === req.params.id)
+  
   if (!product) {
     return res.status(404).json({ error: 'Product not found' })
   }
+  
+  // Only owner or admin can view
+  if (product.ownerId !== userId && req.user.role !== ROLES.ADMIN) {
+    return res.status(403).json({ error: 'Access denied' })
+  }
+  
   const { ownerId, ...productWithoutOwner } = product
   res.json(productWithoutOwner)
 })
 
+
+/**
+ * @swagger
+ * /api/products/{id}:
+ *   put:
+ *     summary: Обновить товар
+ *     tags: [Products]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               category:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               price:
+ *                 type: number
+ *               stock:
+ *                 type: number
+ *               image:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Товар обновлён
+ *       403:
+ *         description: Доступ только для продавцов и администраторов
+ */
+
 // PUT /api/products/:id - SELLER and ADMIN only
 app.put('/api/products/:id', authMiddleware, roleMiddleware([ROLES.SELLER, ROLES.ADMIN]), (req, res) => {
+  const userId = req.user.sub
   const product = products.find(p => p.id === req.params.id)
+  
   if (!product) {
     return res.status(404).json({ error: 'Product not found' })
+  }
+  
+  // Seller can only edit their own products, admin can edit any
+  if (product.ownerId !== userId && req.user.role !== ROLES.ADMIN) {
+    return res.status(403).json({ error: 'You can only edit your own products' })
   }
 
   const { name, category, description, price, stock, image } = req.body
@@ -490,11 +812,32 @@ app.put('/api/products/:id', authMiddleware, roleMiddleware([ROLES.SELLER, ROLES
   }
   if (image !== undefined) product.image = String(image).trim()
 
-  product.updatedAt = new Date().toISOString()
-
   const { ownerId, ...productWithoutOwner } = product
+  console.log(`✅ Product updated: ${product.name} by ${req.user.email}`)
   res.json(productWithoutOwner)
 })
+
+
+/**
+ * @swagger
+ * /api/products/{id}:
+ *   delete:
+ *     summary: Удалить товар
+ *     tags: [Products]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       204:
+ *         description: Товар удалён
+ *       403:
+ *         description: Доступ только для администратора
+ */
 
 // DELETE /api/products/:id - ADMIN only
 app.delete('/api/products/:id', authMiddleware, roleMiddleware([ROLES.ADMIN]), (req, res) => {
@@ -503,25 +846,11 @@ app.delete('/api/products/:id', authMiddleware, roleMiddleware([ROLES.ADMIN]), (
     return res.status(404).json({ error: 'Product not found' })
   }
 
+  const deletedProduct = products[productIndex]
   products.splice(productIndex, 1)
+  console.log(`✅ Product deleted: ${deletedProduct.name} by admin`)
   res.status(204).send()
 })
-
-// Initialize default admin and assign products
-const initializeData = async () => {
-  await createDefaultAdmin()
-  
-  // Assign initial products to default admin if no products exist
-  if (products.length === 0) {
-    const admin = users.find(u => u.role === ROLES.ADMIN)
-    if (admin) {
-      initialProducts.forEach(product => {
-        products.push({ ...product, ownerId: admin.id, createdAt: new Date().toISOString() })
-      })
-      console.log(`📦 Initialized ${products.length} products for admin`)
-    }
-  }
-}
 
 // 404 handler
 app.use((req, res) => {
@@ -534,9 +863,9 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' })
 })
 
-// Start server
+// ===== Start server =====
 const startServer = async () => {
-  await initializeData()
+  await initializeDefaultAdmin()
   app.listen(port, () => {
     console.log(`\n🚀 Server running on http://127.0.0.1:${port}`)
     console.log(`📚 Swagger UI: http://127.0.0.1:${port}/api-docs`)
@@ -546,38 +875,37 @@ const startServer = async () => {
 ╠═══════════════════════════════════════════════════════════════════════════════════════╣
 ║                                                                                       ║
 ║  ROLES:                                                                               ║
-║    👤 GUEST   - Not authenticated (can only register/login)                          ║
-║    🧑 USER    - Can view products                                                    ║
-║    🛒 SELLER  - Can create and edit products                                         ║
-║    👑 ADMIN   - Full access (manage users and products)                              ║
+║    👤 USER   - Can view products                                                      ║
+║    🛒 SELLER - Can view, create and edit products                                     ║
+║    👑 ADMIN  - Full access (manage users and delete products)                         ║
 ║                                                                                       ║
 ╠═══════════════════════════════════════════════════════════════════════════════════════╣
-║  🔓 PUBLIC ROUTES (GUEST):                                                           ║
-║    POST   /api/auth/register  - Register new user                                    ║
-║    POST   /api/auth/login     - Login                                                ║
-║    POST   /api/auth/refresh   - Refresh tokens                                       ║
+║  🔓 PUBLIC ROUTES:                                                                    ║
+║    POST   /api/auth/register  - Register new user                                     ║
+║    POST   /api/auth/login     - Login                                                 ║
+║    POST   /api/auth/refresh   - Refresh tokens                                        ║
 ╠═══════════════════════════════════════════════════════════════════════════════════════╣
-║  🔒 PROTECTED ROUTES:                                                                ║
+║  🔒 PROTECTED ROUTES:                                                                 ║
 ║                                                                                       ║
-║    USER + SELLER + ADMIN:                                                            ║
-║      POST   /api/auth/logout   - Logout                                              ║
-║      GET    /api/auth/me       - Get current user info                               ║
-║      GET    /api/products      - List products                                       ║
-║      GET    /api/products/:id  - Get product by ID                                   ║
+║    ALL AUTHENTICATED USERS:                                                           ║
+║      POST   /api/auth/logout   - Logout                                               ║
+║      GET    /api/auth/me       - Get current user info                                ║
+║      GET    /api/products      - List your products                                   ║
+║      GET    /api/products/:id  - Get product by ID                                    ║
 ║                                                                                       ║
-║    SELLER + ADMIN:                                                                   ║
-║      POST   /api/products      - Create product                                      ║
-║      PUT    /api/products/:id  - Update product                                      ║
+║    SELLER + ADMIN:                                                                    ║
+║      POST   /api/products      - Create product                                       ║
+║      PUT    /api/products/:id  - Update product                                       ║
 ║                                                                                       ║
-║    ADMIN ONLY:                                                                       ║
-║      GET    /api/users         - List all users                                      ║
-║      GET    /api/users/:id     - Get user by ID                                      ║
-║      PUT    /api/users/:id     - Update user (role, status)                          ║
-║      DELETE /api/users/:id     - Block user                                          ║
-║      DELETE /api/products/:id  - Delete product                                      ║
+║    ADMIN ONLY:                                                                        ║
+║      GET    /api/users         - List all users                                       ║
+║      GET    /api/users/:id     - Get user by ID                                       ║
+║      PUT    /api/users/:id     - Update user (role, status)                           ║
+║      DELETE /api/users/:id     - Block user                                           ║
+║      DELETE /api/products/:id  - Delete any product                                   ║
 ║                                                                                       ║
 ╠═══════════════════════════════════════════════════════════════════════════════════════╣
-║  👑 DEFAULT ADMIN: admin@example.com / admin123                                      ║
+║  👑 DEFAULT ADMIN: admin@example.com / admin123                                       ║
 ╚═══════════════════════════════════════════════════════════════════════════════════════╝
     `)
   })

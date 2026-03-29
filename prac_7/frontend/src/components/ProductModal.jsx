@@ -1,135 +1,203 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react'
 
-export default function ProductModal({ 
-    open, 
-    mode, 
-    initialProduct, 
-    onClose, 
-    onSubmit 
+const emptyProduct = {
+  id: '',
+  name: '',
+  category: '',
+  description: '',
+  price: '',
+  stock: '',
+  image: ''
+}
+
+export default function ProductModal ({
+  open,
+  mode,
+  initialProduct,
+  onClose,
+  onSubmit
 }) {
-    const [formData, setFormData] = useState({
-        title: '',
-        category: '',
-        description: '',
-        price: ''
-    });
+  const isEdit = mode === 'edit'
 
-    useEffect(() => {
-        if (mode === 'edit' && initialProduct) {
-            setFormData({
-                title: initialProduct.title || '',
-                category: initialProduct.category || '',
-                description: initialProduct.description || '',
-                price: initialProduct.price || ''
-            });
-        } else {
-            setFormData({
-                title: '',
-                category: '',
-                description: '',
-                price: ''
-            });
-        }
-    }, [mode, initialProduct, open]);
+  const initialState = useMemo(() => {
+    if (isEdit && initialProduct) {
+      return {
+        id: initialProduct.id,
+        name: initialProduct.name ?? '',
+        category: initialProduct.category ?? '',
+        description: initialProduct.description ?? '',
+        price: initialProduct.price ?? '',
+        stock: initialProduct.stock ?? '',
+        image: initialProduct.image ?? ''
+      }
+    }
+    return emptyProduct
+  }, [isEdit, initialProduct])
 
-    const handleChange = (e) => {
-        setFormData({
-            ...formData,
-            [e.target.name]: e.target.value
-        });
-    };
+  const [form, setForm] = useState(initialState)
 
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        
-        const payload = {
-            ...formData,
-            price: Number(formData.price)
-        };
-        
-        if (mode === 'edit' && initialProduct) {
-            payload.id = initialProduct.id;
-        }
-        
-        onSubmit(payload);
-    };
+  useEffect(() => {
+    setForm(initialState)
+  }, [initialState])
 
-    if (!open) return null;
+  if (!open) return null
 
-    return (
-        <div className="backdrop" onClick={onClose}>
-            <div className="modal" onClick={e => e.stopPropagation()}>
-                <div className="modal__header">
-                    <span className="modal__title">
-                        {mode === 'create' ? 'Новый товар' : 'Редактировать товар'}
-                    </span>
-                    <button className="iconBtn" onClick={onClose}>✕</button>
-                </div>
+  const setField = key => e => {
+    setForm(prev => ({ ...prev, [key]: e.target.value }))
+  }
 
-                <form onSubmit={handleSubmit}>
-                    <label className="label">
-                        Название *
-                        <input
-                            type="text"
-                            name="title"
-                            value={formData.title}
-                            onChange={handleChange}
-                            required
-                            className="input"
-                            placeholder="Введите название"
-                        />
-                    </label>
+  const isValidHttpUrl = value => {
+    const v = String(value || '').trim()
+    if (!v) return true // картинка необязательная
+    try {
+      const url = new URL(v)
+      return url.protocol === 'http:' || url.protocol === 'https:'
+    } catch {
+      return false
+    }
+  }
 
-                    <label className="label">
-                        Категория *
-                        <input
-                            type="text"
-                            name="category"
-                            value={formData.category}
-                            onChange={handleChange}
-                            required
-                            className="input"
-                            placeholder="Введите категорию"
-                        />
-                    </label>
+  const validate = () => {
+    const name = String(form.name).trim()
+    const category = String(form.category).trim()
+    const description = String(form.description).trim()
+    const price = Number(form.price)
+    const stock = Number(form.stock)
+    const image = String(form.image || '').trim()
 
-                    <label className="label">
-                        Описание
-                        <textarea
-                            name="description"
-                            value={formData.description}
-                            onChange={handleChange}
-                            className="input"
-                            rows="3"
-                            placeholder="Введите описание (необязательно)"
-                        />
-                    </label>
+    if (!name) return 'Введите название'
+    if (!category) return 'Введите категорию'
+    if (!description) return 'Введите описание'
+    if (!Number.isFinite(price) || price < 0)
+      return 'Цена должна быть числом ≥ 0'
+    if (!Number.isFinite(stock) || stock < 0)
+      return 'Количество на складе должно быть числом ≥ 0'
 
-                    <label className="label">
-                        Цена *
-                        <input
-                            type="number"
-                            name="price"
-                            value={formData.price}
-                            onChange={handleChange}
-                            required
-                            min="0"
-                            step="1"
-                            className="input"
-                            placeholder="Введите цену"
-                        />
-                    </label>
+    if (!isValidHttpUrl(image))
+      return 'Ссылка на картинку должна начинаться с http:// или https://'
 
-                    <div className="modal__footer">
-                        <button type="button" className="btn" onClick={onClose}>
-                            Отмена
-                        </button>
-                        <button type="submit" className="btn btn--primary">
-                            {mode === 'create' ? 'Создать' : 'Сохранить'}
-                        </button>
-                    </div>
-                </form>
-            </div>
+    return null
+  }
+
+  const handleSubmit = () => {
+    const err = validate()
+    if (err) {
+      alert(err)
+      return
+    }
+
+    const payload = {
+      ...(isEdit ? { id: form.id } : {}),
+      name: String(form.name).trim(),
+      category: String(form.category).trim(),
+      description: String(form.description).trim(),
+      price: Number(form.price),
+      stock: Number(form.stock),
+      image: String(form.image || '').trim() // <-- ВАЖНО: добавили image
+    }
+
+    onSubmit(payload)
+  }
+
+  return (
+    <div className='backdrop' onClick={onClose}>
+      <div className='modal' onClick={e => e.stopPropagation()}>
+        <div className='modal__header'>
+          <div className='modal__title'>
+            {isEdit ? 'Редактировать товар' : 'Добавить товар'}
+          </div>
+          <button className='iconBtn' onClick={onClose} type='button'>
+            ✕
+          </button>
         </div>
-    );
+
+        <form
+          onSubmit={e => {
+            e.preventDefault()
+            handleSubmit()
+          }}
+        >
+          <label className='label'>
+            Название
+            <input
+              className='input'
+              value={form.name}
+              onChange={setField('name')}
+            />
+          </label>
+
+          <label className='label'>
+            Категория
+            <input
+              className='input'
+              value={form.category}
+              onChange={setField('category')}
+            />
+          </label>
+
+          <label className='label'>
+            Описание
+            <textarea
+              className='input'
+              value={form.description}
+              onChange={setField('description')}
+            />
+          </label>
+
+          <label className='label'>
+            Цена (₽)
+            <input
+              className='input'
+              type='number'
+              value={form.price}
+              onChange={setField('price')}
+            />
+          </label>
+
+          <label className='label'>
+            На складе (шт.)
+            <input
+              className='input'
+              type='number'
+              value={form.stock}
+              onChange={setField('stock')}
+            />
+          </label>
+
+          {/* ✅ Новое поле: URL картинки */}
+          <label className='label'>
+            Ссылка на картинку (URL)
+            <input
+              className='input'
+              placeholder='https://...'
+              value={form.image}
+              onChange={setField('image')}
+            />
+          </label>
+
+          {/* ✅ Превью (опционально, но удобно) */}
+          {String(form.image || '').trim() ? (
+            <div className='imgPreview'>
+              <img
+                src={String(form.image).trim()}
+                alt='preview'
+                onError={e => {
+                  e.currentTarget.style.display = 'none'
+                }}
+              />
+            </div>
+          ) : null}
+
+          <div className='modal__footer'>
+            <button type='button' className='btn' onClick={onClose}>
+              Отмена
+            </button>
+            <button type='submit' className='btn btn--primary'>
+              {isEdit ? 'Сохранить' : 'Создать'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
 }

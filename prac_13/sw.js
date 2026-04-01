@@ -1,20 +1,20 @@
 // Имя кэша
-const CACHE_NAME = 'notes-pwa-v2';
+const CACHE_NAME = 'notes-pwa-v3';
 
 // Ресурсы для кэширования
 const urlsToCache = [
-    '/notes-app/',
-    '/notes-app/index.html',
-    '/notes-app/app.js',
-    '/notes-app/manifest.json',
-    '/notes-app/icons/icon-72x72.png',
-    '/notes-app/icons/icon-96x96.png',
-    '/notes-app/icons/icon-128x128.png',
-    '/notes-app/icons/icon-144x144.png',
-    '/notes-app/icons/icon-152x152.png',
-    '/notes-app/icons/icon-192x192.png',
-    '/notes-app/icons/icon-384x384.png',
-    '/notes-app/icons/icon-512x512.png'
+    '/prac_13/',
+    '/prac_13/index.html',
+    '/prac_13/app.js',
+    '/prac_13/manifest.json',
+    '/prac_13/icons/icon-72x72.png',
+    '/prac_13/icons/icon-96x96.png',
+    '/prac_13/icons/icon-128x128.png',
+    '/prac_13/icons/icon-144x144.png',
+    '/prac_13/icons/icon-152x152.png',
+    '/prac_13/icons/icon-192x192.png',
+    '/prac_13/icons/icon-384x384.png',
+    '/prac_13/icons/icon-512x512.png'
 ];
 
 // Установка Service Worker
@@ -58,43 +58,30 @@ self.addEventListener('activate', event => {
 
 // Перехват запросов
 self.addEventListener('fetch', event => {
-    // Пропускаем не-GET запросы
-    if (event.request.method !== 'GET') {
-        return;
-    }
+    if (event.request.method !== 'GET') return;
     
-    // Пропускаем запросы к внешним ресурсам
     const url = new URL(event.request.url);
-    if (url.hostname !== self.location.hostname) {
-        return;
-    }
+    if (url.hostname !== self.location.hostname) return;
     
     event.respondWith(
         caches.match(event.request)
             .then(response => {
-                // Найдено в кэше
                 if (response) {
                     console.log('[SW] Из кэша:', event.request.url);
                     return response;
                 }
                 
-                // Запрос в сеть
                 console.log('[SW] Из сети:', event.request.url);
                 return fetch(event.request)
                     .then(networkResponse => {
-                        // Проверяем валидность ответа
                         if (!networkResponse || networkResponse.status !== 200) {
                             return networkResponse;
                         }
                         
-                        // Кэшируем успешные ответы
                         const responseToCache = networkResponse.clone();
                         caches.open(CACHE_NAME)
                             .then(cache => {
                                 cache.put(event.request, responseToCache);
-                            })
-                            .catch(error => {
-                                console.error('[SW] Ошибка кэширования:', error);
                             });
                         
                         return networkResponse;
@@ -102,9 +89,8 @@ self.addEventListener('fetch', event => {
                     .catch(error => {
                         console.error('[SW] Ошибка сети:', error);
                         
-                        // Для HTML запросов возвращаем офлайн страницу
                         if (event.request.headers.get('accept').includes('text/html')) {
-                            return caches.match('/notes-app/index.html');
+                            return caches.match('/prac_13/index.html');
                         }
                         
                         return new Response('Офлайн режим: ресурс недоступен', {
@@ -116,10 +102,7 @@ self.addEventListener('fetch', event => {
     );
 });
 
-// Обработка сообщений
 self.addEventListener('message', event => {
-    console.log('[SW] Получено сообщение:', event.data);
-    
     if (event.data && event.data.type === 'SKIP_WAITING') {
         self.skipWaiting();
     }

@@ -1,0 +1,162 @@
+<div class="home-content">
+    <h2 class="is-center">📝 Добавить заметку</h2>
+    <form id="note-form" class="row is-center" style="margin-bottom: 2rem;">
+        <div class="col-12" style="display: flex; gap: 10px;">
+            <textarea id="note-input" class="col-9" rows="3" placeholder="Введите текст заметки..." required style="flex: 1;"></textarea>
+            <button type="submit" class="button primary" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">➕ Добавить</button>
+        </div>
+    </form>
+    
+    <h2 class="is-center" style="margin-top: 2rem;">📋 Список заметок</h2>
+    
+    <div class="toolbar" style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;">
+        <input type="text" id="search-input" class="search-box" placeholder="🔍 Поиск заметок..." style="flex: 1; padding: 10px; border: 2px solid #e0e0e0; border-radius: 10px;">
+        <div class="filter-buttons" style="display: flex; gap: 10px;">
+            <button class="filter-btn active" data-filter="all" style="padding: 10px 20px; background: #f0f0f0; border: none; border-radius: 10px; cursor: pointer;">Все</button>
+            <button class="filter-btn" data-filter="today" style="padding: 10px 20px; background: #f0f0f0; border: none; border-radius: 10px; cursor: pointer;">Сегодня</button>
+            <button class="filter-btn" data-filter="week" style="padding: 10px 20px; background: #f0f0f0; border: none; border-radius: 10px; cursor: pointer;">Неделя</button>
+        </div>
+        <button id="clear-all" class="clear-all-btn" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 10px 20px; border: none; border-radius: 10px; color: white; cursor: pointer;">🗑️ Очистить все</button>
+    </div>
+    
+    <ul id="notes-list" style="list-style: none; padding-left: 0;"></ul>
+    
+    <div class="stats" style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px; padding-top: 20px; border-top: 2px solid #e0e0e0;">
+        <div id="stats"></div>
+        <div class="export-import" style="display: flex; gap: 10px;">
+            <button id="export-btn" class="small-btn" style="padding: 8px 16px; background: #6c5ce7; border: none; border-radius: 10px; color: white; cursor: pointer;">📤 Экспорт</button>
+            <button id="import-btn" class="small-btn" style="padding: 8px 16px; background: #6c5ce7; border: none; border-radius: 10px; color: white; cursor: pointer;">📥 Импорт</button>
+            <input type="file" id="import-file" accept=".json" style="display: none;">
+        </div>
+    </div>
+    
+    <footer class="is-center" style="margin-top: 20px; text-align: center;">
+        <button id="enable-push" class="button success" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); padding: 10px 20px; border: none; border-radius: 10px; color: white; cursor: pointer;">🔔 Включить уведомления</button>
+        <button id="disable-push" class="button error" style="display: none; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 10px 20px; border: none; border-radius: 10px; color: white; cursor: pointer;">🔕 Отключить уведомления</button>
+    </footer>
+</div>
+
+<style>
+    .notes-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 20px;
+    }
+    
+    .note-card {
+        background: #f8f9fa;
+        border-radius: 15px;
+        padding: 20px;
+        transition: transform 0.3s, box-shadow 0.3s;
+        animation: slideIn 0.3s ease;
+    }
+    
+    .note-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    }
+    
+    @keyframes slideIn {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    .note-text {
+        font-size: 16px;
+        color: #333;
+        line-height: 1.5;
+        margin-bottom: 15px;
+        word-break: break-word;
+        white-space: pre-wrap;
+    }
+    
+    .note-date {
+        font-size: 11px;
+        color: #999;
+        margin-bottom: 15px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .note-actions {
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+    }
+    
+    .edit-btn, .delete-btn, .save-btn, .cancel-btn {
+        padding: 6px 12px;
+        font-size: 12px;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        color: white;
+    }
+    
+    .edit-btn { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
+    .delete-btn { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+    .save-btn { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
+    .cancel-btn { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
+    
+    .edit-textarea {
+        width: 100%;
+        padding: 10px;
+        border: 2px solid #4285f4;
+        border-radius: 10px;
+        font-size: 14px;
+        font-family: inherit;
+        margin-bottom: 10px;
+        resize: vertical;
+    }
+    
+    .empty-message {
+        text-align: center;
+        color: #999;
+        padding: 60px;
+        font-style: italic;
+        background: #f8f9fa;
+        border-radius: 10px;
+    }
+    
+    .notification {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 15px 20px;
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+        z-index: 2000;
+        animation: slideInRight 0.3s ease;
+        max-width: 300px;
+    }
+    
+    @keyframes slideInRight {
+        from {
+            opacity: 0;
+            transform: translateX(100%);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+    
+    .notification.success { border-left: 4px solid #43e97b; }
+    .notification.error { border-left: 4px solid #f5576c; }
+    .notification.info { border-left: 4px solid #4285f4; }
+    
+    @media (max-width: 768px) {
+        .notes-grid { grid-template-columns: 1fr; }
+        .toolbar { flex-direction: column; }
+        .filter-buttons { justify-content: center; }
+        .stats { flex-direction: column; }
+    }
+</style>

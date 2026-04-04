@@ -1,13 +1,13 @@
 {
-    "name": "Мои заметки",
+    "name": "Мои заметки PWA",
     "short_name": "Заметки",
-    "description": "Мощное PWA приложение для заметок с редактированием, поиском, WebSocket и push-уведомлениями",
-    "start_url": "/prac_15/index.html",
+    "description": "Мощное PWA приложение для заметок с уведомлениями и синхронизацией",
+    "start_url": "/index.html",
     "display": "standalone",
     "background_color": "#ffffff",
     "theme_color": "#4285f4",
     "orientation": "portrait-primary",
-    "scope": "/prac_15/",
+    "scope": "/",
     "lang": "ru",
     "categories": ["productivity", "utilities"],
     "icons": [

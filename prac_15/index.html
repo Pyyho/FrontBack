@@ -4,23 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     
-    <!-- Web App Manifest -->
-    <link rel="manifest" href="/prac_15/manifest.json">
-    
-    <!-- Для Android -->
+    <link rel="manifest" href="/manifest.json">
     <meta name="mobile-web-app-capable" content="yes">
-    
-    <!-- Цвет темы для браузера -->
     <meta name="theme-color" content="#4285f4">
     
-    <!-- Для iOS -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Заметки">
-    <link rel="apple-touch-icon" href="/prac_15/icons/icon-152x152.png">
-    <link rel="icon" href="/prac_15/icons/favicon.ico" sizes="16x16" type="image/ico">
+    <meta name="apple-mobile-web-app-title" content="Заметки PWA">
+    <link rel="apple-touch-icon" href="/icons/icon-152x152.png">
     
-    <title>Заметки | PWA приложение</title>
+    <title>📝 Заметки | PWA с уведомлениями</title>
     <link rel="stylesheet" href="https://unpkg.com/chota@latest">
     
     <style>
@@ -44,14 +37,14 @@
             box-shadow: 0 20px 60px rgba(0,0,0,0.3);
         }
         
-        header h1 {
+        h1 {
             color: #4285f4;
             text-align: center;
             margin-bottom: 20px;
             font-size: 1.8em;
         }
         
-        header h1 .no-break {
+        .no-break {
             white-space: nowrap;
         }
         
@@ -66,14 +59,14 @@
         .tab {
             flex: 1;
             padding: 12px 24px;
-            background: #f0f0f0;
+            background: none;
             color: #666;
             border: none;
-            border-radius: 10px 10px 0 0;
+            border-radius: 10px;
             cursor: pointer;
             font-size: 16px;
             font-weight: 600;
-            transition: all 0.3s ease;
+            transition: all 0.3s;
         }
         
         .tab.active {
@@ -82,7 +75,7 @@
         }
         
         .tab:hover:not(.active) {
-            background: #e0e0e0;
+            background: #f0f0f0;
             transform: translateY(-2px);
         }
         
@@ -93,7 +86,6 @@
             border-radius: 10px;
             font-size: 14px;
             font-weight: 500;
-            transition: all 0.3s ease;
         }
         
         .status.online {
@@ -104,6 +96,33 @@
         .status.offline {
             background: linear-gradient(135deg, #fad0c4 0%, #ffd1ff 100%);
             color: #721c24;
+        }
+        
+        .notification-panel {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+        }
+        
+        .btn-error {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+        
+        .stats {
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 2px solid #e0e0e0;
+            color: #666;
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
         }
         
         .install-btn {
@@ -127,33 +146,70 @@
             50% { transform: translateY(-10px); }
         }
         
+        .notification-toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #4285f4;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 10px;
+            z-index: 2000;
+            animation: slideInRight 0.3s ease;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+        }
+        
+        @keyframes slideInRight {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
         @media (max-width: 768px) {
             body { padding: 10px; }
             .container { padding: 20px; }
-            header h1 { font-size: 1.2em; }
+            h1 { font-size: 1.3em; }
             .tab { padding: 8px 16px; font-size: 14px; }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <header>
-            <h1>А вот и «Заметки» – наше первое <span class="no-break">оффлайн-приложение</span></h1>
-            <div class="tabs">
-                <button id="home-btn" class="tab active col-6">🏠 Главная</button>
-                <button id="about-btn" class="tab col-6">ℹ️ О приложении</button>
-            </div>
-        </header>
+        <h1>📝 <span class="no-break">Мои заметки</span> <span class="no-break">- PWA приложение</span></h1>
         
         <div id="status"></div>
         
+        <div class="tabs">
+            <button id="home-btn" class="tab active">🏠 Главная</button>
+            <button id="about-btn" class="tab">ℹ️ О приложении</button>
+        </div>
+        
+        <div class="notification-panel">
+            <button id="enable-push" class="btn-success" style="display: none;">🔔 Включить уведомления</button>
+            <button id="disable-push" class="btn-error" style="display: none;">🔕 Отключить уведомления</button>
+        </div>
+        
         <!-- Основной контейнер для динамического контента -->
         <main id="app-content">
-            <!-- Сюда будет загружаться контент -->
+            <!-- Сюда загружается контент через fetch -->
         </main>
+        
+        <div class="stats">
+            <div id="stats"></div>
+            <div>
+                <button id="export-btn" class="small-btn" style="padding: 8px 16px; background: #6c5ce7;">📤 Экспорт</button>
+                <button id="import-btn" class="small-btn" style="padding: 8px 16px; background: #6c5ce7;">📥 Импорт</button>
+                <input type="file" id="import-file" accept=".json" style="display: none;">
+            </div>
+        </div>
     </div>
-
+    
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
-    <script src="/prac_15/app.js"></script>
+    <script src="app.js"></script>
 </body>
 </html>

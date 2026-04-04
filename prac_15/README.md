@@ -1,0 +1,1 @@
+ЧТо бы запустить сервер в https нужно ввести в консоль: npx http-server --ssl --cert certs/localhost.pem --key certs/localhost-key.pem -p 3000

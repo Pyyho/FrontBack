@@ -1,31 +1,17 @@
 const express = require('express');
-const https = require('https');
-const fs = require('fs');
+const http = require('http');
 const socketIo = require('socket.io');
 const webpush = require('web-push');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 
-// Проверяем наличие сертификатов
-let httpsOptions;
-try {
-    httpsOptions = {
-        key: fs.readFileSync(path.join(__dirname, 'localhost-key.pem')),
-        cert: fs.readFileSync(path.join(__dirname, 'localhost.pem'))
-    };
-    console.log('✅ Сертификаты загружены');
-} catch (error) {
-    console.error('❌ Сертификаты не найдены. Создайте их с помощью OpenSSL:');
-    console.error('openssl req -x509 -newkey rsa:2048 -nodes -keyout localhost-key.pem -out localhost.pem -days 365 -subj "/CN=localhost"');
-    process.exit(1);
-}
-
-// VAPID-ключи (замените на свои после генерации)
-// Сгенерируйте с помощью: npx web-push generate-vapid-keys
+// ========== VAPID КЛЮЧИ (Сгенерируйте свои через: npx web-push generate-vapid-keys) ==========
+// Замените на свои ключи!
 const vapidKeys = {
-    publicKey: 'BGpXqKx3qNx7qX8qX9qX0qX1qX2qX3qX4qX5qX6qX7qX8qX9qX0qX1qX2qX3',
-    privateKey: 'qX4qX5qX6qX7qX8qX9qX0qX1qX2qX3qX4qX5qX6qX7qX8qX9qX0qX1qX2'
+    publicKey: 'BCsx5YSYIFOKTKtNc_1Zv0BQl4Ei7t7gF-mLF3_MUb0XThZwieXu-Lt-mdjge2j1Iu6vuAI0xo8VLxsI4ZB4leY',
+    privateKey: 'RItiMJSE0Nh8gbU6d4uZh-QDtafc-24_VCOH0gkkR5s'
 };
 
 webpush.setVapidDetails(
@@ -37,11 +23,14 @@ webpush.setVapidDetails(
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
+
+// Раздача статических файлов
 app.use(express.static(path.join(__dirname, './')));
 
+// Хранилище push-подписок
 let subscriptions = [];
 
-const server = https.createServer(httpsOptions, app);
+const server = http.createServer(app);
 const io = socketIo(server, {
     cors: {
         origin: "*",
@@ -49,21 +38,28 @@ const io = socketIo(server, {
     }
 });
 
+// WebSocket соединение
 io.on('connection', (socket) => {
-    console.log('✅ Клиент подключён:', socket.id);
-    
+    console.log('📡 Клиент подключён:', socket.id);
+
     socket.on('newTask', (task) => {
-        console.log('📝 Новая задача:', task);
+        console.log('📝 Новая задача от клиента:', task);
+        
+        // Рассылаем всем подключённым клиентам
         io.emit('taskAdded', task);
         
+        // Отправляем push-уведомления всем подписанным клиентам
         const payload = JSON.stringify({
-            title: '📝 Новая задача',
-            body: task.text
+            title: '📝 Новая заметка',
+            body: task.text.length > 50 ? task.text.substring(0, 50) + '...' : task.text,
+            icon: '/icons/icon-192x192.png',
+            badge: '/icons/icon-96x96.png'
         });
         
         subscriptions.forEach(sub => {
             webpush.sendNotification(sub, payload).catch(err => {
                 console.error('Push error:', err);
+                // Удаляем невалидную подписку
                 if (err.statusCode === 410) {
                     subscriptions = subscriptions.filter(s => s.endpoint !== sub.endpoint);
                 }
@@ -72,42 +68,40 @@ io.on('connection', (socket) => {
     });
     
     socket.on('disconnect', () => {
-        console.log('❌ Клиент отключён:', socket.id);
+        console.log('🔌 Клиент отключён:', socket.id);
     });
 });
 
+// Эндпоинты для push-подписок
 app.post('/subscribe', (req, res) => {
     const subscription = req.body;
-    const exists = subscriptions.some(sub => sub.endpoint === subscription.endpoint);
-    if (!exists) {
+    // Проверяем, нет ли уже такой подписки
+    if (!subscriptions.find(sub => sub.endpoint === subscription.endpoint)) {
         subscriptions.push(subscription);
-        console.log('📌 Подписка сохранена, всего подписок:', subscriptions.length);
     }
+    console.log('✅ Push-подписка сохранена. Всего подписок:', subscriptions.length);
     res.status(201).json({ message: 'Подписка сохранена' });
 });
 
 app.post('/unsubscribe', (req, res) => {
     const { endpoint } = req.body;
     subscriptions = subscriptions.filter(sub => sub.endpoint !== endpoint);
-    console.log('🔕 Подписка удалена, осталось подписок:', subscriptions.length);
+    console.log('❌ Push-подписка удалена. Всего подписок:', subscriptions.length);
     res.status(200).json({ message: 'Подписка удалена' });
 });
 
-app.get('/status', (req, res) => {
-    res.json({ 
-        subscriptions: subscriptions.length,
-        vapidPublicKey: vapidKeys.publicKey
-    });
+app.get('/public-key', (req, res) => {
+    res.json({ publicKey: vapidKeys.publicKey });
 });
 
 const PORT = 3001;
 server.listen(PORT, () => {
     console.log(`
-    🚀 Сервер запущен!
-    📱 Откройте: https://localhost:${PORT}/prac_15/
-    🔔 VAPID Public Key: ${vapidKeys.publicKey.substring(0, 30)}...
-    
-    ⚠️ Если браузер показывает предупреждение, нажмите:
-    "Advanced" -> "Proceed to localhost (unsafe)"
+    ╔══════════════════════════════════════════════════════╗
+    ║     🚀 Сервер запущен!                               ║
+    ║     📡 WebSocket + Push уведомления                  ║
+    ║     🌐 http://localhost:${PORT}                        ║
+    ║     🔒 HTTPS: https://localhost:3000 (через npm run https) ║
+    ╚══════════════════════════════════════════════════════╝
     `);
 });

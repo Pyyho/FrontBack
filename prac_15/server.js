@@ -10,8 +10,8 @@ const fs = require('fs');
 // ========== VAPID КЛЮЧИ (Сгенерируйте свои через: npx web-push generate-vapid-keys) ==========
 // Замените на свои ключи!
 const vapidKeys = {
-    publicKey: 'BCsx5YSYIFOKTKtNc_1Zv0BQl4Ei7t7gF-mLF3_MUb0XThZwieXu-Lt-mdjge2j1Iu6vuAI0xo8VLxsI4ZB4leY',
-    privateKey: 'RItiMJSE0Nh8gbU6d4uZh-QDtafc-24_VCOH0gkkR5s'
+    publicKey: 'BGUpBesnCPTqelFONrVJv57aHUUnqFm7JoUMLCxBYtQeABd5fL1ny2v7HFcV2ww3zjjdr55lg6HLvPdIiQLdcks',
+    privateKey: 'McsKpBF8mL7FQy_fS21w1f0EZU8OQOuMdwb_8cKQSGI'
 };
 
 webpush.setVapidDetails(

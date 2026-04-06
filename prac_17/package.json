@@ -1,0 +1,21 @@
+{
+  "name": "prac_17",
+  "version": "1.0.0",
+  "description": "PWA приложение для заметок с WebSocket и Push уведомлениями",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "https": "npx http-server --ssl --cert certs/localhost.pem --key certs/localhost-key.pem -p 3000",
+    "dev": "node server.js & npx http-server --ssl --cert certs/localhost.pem --key certs/localhost-key.pem -p 3000"
+  },
+  "keywords": ["pwa", "websocket", "push", "notes"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "body-parser": "^2.2.2",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "socket.io": "^4.8.3",
+    "web-push": "^3.6.7"
+  }
+}
